@@ -1,5 +1,4 @@
 // Options page: API key, folders, sorting settings.
-import { testApiKey } from './jev.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -18,7 +17,6 @@ async function init() {
     const el = $('#apiKey');
     el.type = el.type === 'password' ? 'text' : 'password';
   };
-  $('#testKey').onclick = onTestKey;
   $('#apiKey').onchange = async () => {
     await chrome.storage.local.set({ typesafeApiKey: $('#apiKey').value.trim() });
     setStatus('#keyStatus', 'Key saved in this browser.', true);
@@ -39,18 +37,6 @@ function setStatus(sel, msg, ok) {
   el.className = 'status ' + (ok ? 'ok' : 'err');
 }
 
-async function onTestKey() {
-  const key = $('#apiKey').value.trim();
-  if (!key) return setStatus('#keyStatus', 'Paste a key first.', false);
-  setStatus('#keyStatus', 'Testing…', true);
-  try {
-    await testApiKey(key, $('#model').value.trim() || 'jev-latest');
-    await chrome.storage.local.set({ typesafeApiKey: key });
-    setStatus('#keyStatus', 'Key works and is saved.', true);
-  } catch (e) {
-    setStatus('#keyStatus', 'Key test failed: ' + String((e && e.message) || e), false);
-  }
-}
 
 function newId() {
   return 'f_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);

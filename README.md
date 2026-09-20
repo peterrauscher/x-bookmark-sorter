@@ -6,17 +6,18 @@ model to decide where each bookmarked post belongs.
 
 Built with the [TypeSafe skill](https://github.com/typesafe-ai/skills/blob/main/skills/typesafe-ai/SKILL.md):
 instead of an LLM prompt-and-parse step, filing is a single typed **Choice** question
-per bookmark — Jev returns the winning folder plus a probability distribution and
-confidence, and the extension files anything below your confidence threshold as
-"needs review" rather than guessing.
+per bookmark, grouped into batched Jev requests — Jev returns the winning folder plus a
+probability distribution and confidence, and the extension files anything below your
+confidence threshold as "needs review" rather than guessing.
 
 ## How it works
 
 1. **Scan** — the content script reads your `x.com/i/bookmarks` page (auto-scrolls to
    load more) and stores each bookmark's text, author, and URL locally.
-2. **Sort** — the background worker sends each unsorted bookmark to Jev as state,
-   with one Choice question: *"Which folder should this bookmarked X post be filed into?"*
-   Your folders become the criteria, plus an explicit `unsorted` no-match option.
+2. **Sort** — the background worker sends up to 20 unsorted bookmarks to Jev as one
+   state, with one Choice question per bookmark. Up to three such requests run
+   concurrently. Your folders become the criteria, plus an explicit `unsorted`
+   no-match option.
 3. **File** — if Jev's pick clears your confidence threshold (default 0.60), the
    bookmark is filed; otherwise it lands in Unsorted flagged for review.
 4. **Browse** — the popup shows bookmarks per folder with manual re-assignment.
@@ -29,9 +30,9 @@ X has no public API for bookmark folders, so folders live in the extension
 1. Get a TypeSafe API key at [console.typesafe.ai](https://console.typesafe.ai).
 2. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**,
    and select this folder.
-3. Open the extension's **Settings** (⚙ in the popup), paste your API key, hit
-   **Test key**, then create your folders. Give each folder a one-or-two-sentence
-   description — that's what Jev classifies against.
+3. Open the extension's **Settings** (⚙ in the popup), paste your API key, then create
+   your folders. Give each folder a one-or-two-sentence description — that's what Jev
+   classifies against.
 4. Go to [x.com/i/bookmarks](https://x.com/i/bookmarks), open the popup, hit
    **Scan X bookmarks**, then **Auto-sort with Jev**.
 
@@ -41,7 +42,7 @@ X has no public API for bookmark folders, so folders live in the extension
 manifest.json          MV3 manifest
 src/
   background.js        service worker: storage + auto-sort orchestration
-  jev.js               TypeSafe HTTP API client (Choice classification, key test)
+  jev.js               TypeSafe HTTP API client (batched Choice classification)
   content.js           bookmarks-page scraper (x.com/i/bookmarks)
   popup.html/js/css    browse-by-folder UI, scan & sort triggers
   options.html/js/css  API key, folder CRUD, threshold/model settings
@@ -50,9 +51,9 @@ icons/                 extension icons
 
 ## Design notes (from the TypeSafe skill)
 
-- **One narrow Choice per bookmark.** The question is a single coherent judgment
-  ("which folder fits best"), not a multi-factor rating — Jev's System One models
-  are built for exactly this.
+- **One narrow Choice per bookmark.** Each question is a single coherent judgment
+  ("which folder fits best"), and independent bookmark questions are batched into
+  fewer Jev requests.
 - **Criteria carry the meaning.** Folder descriptions are sent to the model, so
   write ones that separate the folders from each other.
 - **No-match outcome included.** An `unsorted` option lets the model decline to

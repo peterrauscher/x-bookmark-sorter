@@ -1,11 +1,15 @@
 // Background service worker: bookmark storage + Jev auto-sort orchestration.
-import { classifyBookmark } from './jev.js';
+import { classifyBookmarks } from './jev.js';
 
 const DEFAULT_SETTINGS = {
   model: 'jev-latest',
   confidenceThreshold: 0.6,
   maxScanTweets: 400,
 };
+
+// Each Jev request carries this many bookmark-specific Choice questions.
+const CLASSIFICATION_BATCH_SIZE = 20;
+const CLASSIFICATION_CONCURRENCY = 3;
 
 // Bookmark record:
 // { id, text, authorName, authorHandle, url,
@@ -88,34 +92,64 @@ async function autoSort(onProgress) {
   let review = 0;
   let errors = 0;
 
-  const CONCURRENCY = 3;
-  for (let i = 0; i < targets.length; i += CONCURRENCY) {
-    const batch = targets.slice(i, i + CONCURRENCY);
-    await Promise.all(
-      batch.map(async (b) => {
+  let processed = 0;
+  for (
+    let i = 0;
+    i < targets.length;
+    i += CLASSIFICATION_BATCH_SIZE * CLASSIFICATION_CONCURRENCY
+  ) {
+    const batches = [];
+    for (let j = 0; j < CLASSIFICATION_CONCURRENCY; j++) {
+      const start = i + j * CLASSIFICATION_BATCH_SIZE;
+      const batch = targets.slice(start, start + CLASSIFICATION_BATCH_SIZE);
+      if (batch.length) batches.push(batch);
+    }
+
+    const outcomes = await Promise.all(
+      batches.map(async (batch) => {
         try {
-          const r = await classifyBookmark(typesafeApiKey, b, folders, cfg.model);
-          if (r.choice !== 'unsorted' && r.confidence >= cfg.confidenceThreshold) {
-            b.folderId = r.choice;
-            b.confidence = r.confidence;
-            b.needsReview = false;
-            sorted++;
-          } else {
-            b.folderId = 'unsorted';
-            b.confidence = r.confidence;
-            b.needsReview = true;
-            review++;
-          }
-          b.sortedAt = Date.now();
-          delete b.sortError;
-        } catch (e) {
-          errors++;
-          b.sortError = String((e && e.message) || e);
+          return {
+            batch,
+            results: await classifyBookmarks(typesafeApiKey, batch, folders, cfg.model),
+          };
+        } catch (error) {
+          return { batch, error };
         }
       })
     );
+
+    for (const { batch, results, error } of outcomes) {
+      if (error) {
+        const message = String((error && error.message) || error);
+        for (const b of batch) {
+          errors++;
+          b.sortError = message;
+        }
+        continue;
+      }
+
+      for (let j = 0; j < batch.length; j++) {
+        const b = batch[j];
+        const r = results[j];
+        if (r.choice !== 'unsorted' && r.confidence >= cfg.confidenceThreshold) {
+          b.folderId = r.choice;
+          b.confidence = r.confidence;
+          b.needsReview = false;
+          sorted++;
+        } else {
+          b.folderId = 'unsorted';
+          b.confidence = r.confidence;
+          b.needsReview = true;
+          review++;
+        }
+        b.sortedAt = Date.now();
+        delete b.sortError;
+      }
+    }
+
+    processed += batches.reduce((count, batch) => count + batch.length, 0);
     await chrome.storage.local.set({ bookmarks });
-    onProgress(Math.min(i + CONCURRENCY, targets.length), targets.length);
+    onProgress(processed, targets.length);
   }
 
   return { total: targets.length, sorted, review, errors };
