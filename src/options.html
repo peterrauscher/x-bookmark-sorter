@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="options.css">
+  <title>X Bookmark Sorter — Settings</title>
+</head>
+<body>
+  <main>
+    <h1>X Bookmark Sorter — Settings</h1>
+
+    <section>
+      <h2>TypeSafe API key</h2>
+      <p>Get a key at <a href="https://console.typesafe.ai" target="_blank" rel="noopener">console.typesafe.ai</a>.
+         It's stored only in this browser (<code>chrome.storage.local</code>) and sent to
+         <code>api.typesafe.ai</code> when sorting.</p>
+      <div class="row">
+        <input id="apiKey" type="password" placeholder="Paste your TypeSafe API key" autocomplete="off">
+        <button id="toggleKey">Show</button>
+        <button id="testKey" class="primary">Test key</button>
+      </div>
+      <div id="keyStatus" class="status"></div>
+    </section>
+
+    <section>
+      <h2>Folders</h2>
+      <p>Jev files each bookmark into one of these. The description tells Jev what belongs
+         in the folder — a sentence or two beats a bare name.</p>
+      <div id="folders"></div>
+      <div class="row">
+        <input id="newFolderName" placeholder="Folder name">
+        <input id="newFolderDesc" placeholder="What goes in here? (optional)">
+        <button id="addFolder" class="primary">Add folder</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Sorting</h2>
+      <label class="field">Model
+        <input id="model" placeholder="jev-latest">
+      </label>
+      <label class="field">Confidence threshold
+        <input id="threshold" type="range" min="0" max="1" step="0.05" value="0.6">
+        <span id="thresholdVal">0.60</span>
+      </label>
+      <p class="hint">Bookmarks Jev files below this confidence land in Unsorted, flagged for review.</p>
+      <label class="field">Max bookmarks per scan
+        <input id="maxScan" type="number" min="50" max="2000" step="50" value="400">
+      </label>
+      <button id="saveSettings" class="primary">Save settings</button>
+      <div id="settingsStatus" class="status"></div>
+    </section>
+
+    <section class="danger">
+      <h2>Data</h2>
+      <button id="clearData">Delete all scanned bookmarks</button>
+    </section>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
