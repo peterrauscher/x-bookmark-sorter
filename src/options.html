@@ -3,56 +3,102 @@
 <head>
   <meta charset="utf-8">
   <link rel="stylesheet" href="options.css">
-  <title>X Bookmark Sorter — Settings</title>
+  <title>BookmarX — Settings</title>
 </head>
 <body>
   <main>
-    <h1>X Bookmark Sorter — Settings</h1>
+    <header class="page-header">
+      <span class="eyebrow">BOOKMARX / CONFIGURATION</span>
+      <h1>BookmarX settings</h1>
+      <p>Connect the filing system, tune Jev, and keep credentials local to this browser.</p>
+    </header>
 
-    <section>
-      <h2>TypeSafe API key</h2>
+    <div id="initError" class="status err" role="alert" hidden></div>
+
+    <section class="settings-card">
+      <div class="section-heading">
+        <span class="section-index">01</span>
+        <div>
+          <h2>TypeSafe API key</h2>
+          <p>Required for bookmark classification.</p>
+        </div>
+      </div>
       <p>Get a key at <a href="https://console.typesafe.ai" target="_blank" rel="noopener">console.typesafe.ai</a>.
-         It's stored only in this browser (<code>chrome.storage.local</code>) and sent to
-         <code>api.typesafe.ai</code> when sorting.</p>
+        It is stored only in this browser (<code>chrome.storage.local</code>) and sent to
+        <code>api.typesafe.ai</code> when sorting.</p>
       <div class="row">
         <input id="apiKey" type="password" placeholder="Paste your TypeSafe API key" autocomplete="off">
-        <button id="toggleKey">Show</button>
+        <button id="toggleKey" class="button-secondary">Show</button>
       </div>
-      <div id="keyStatus" class="status"></div>
+      <div id="keyStatus" class="status" role="status" aria-live="polite"></div>
     </section>
 
-    <section>
-      <h2>Folders</h2>
-      <p>Jev files each bookmark into one of these. The description tells Jev what belongs
-         in the folder — a sentence or two beats a bare name.</p>
-      <div id="folders"></div>
+    <section class="settings-card">
+      <div class="section-heading">
+        <span class="section-index">02</span>
+        <div>
+          <h2>X account</h2>
+          <p>Authorize folder reads and bookmark filing.</p>
+        </div>
+      </div>
+      <p>Bookmarks are filed into the folders on your X account through the official X API.
+        Bookmark folders need X Premium; create them on
+        <a href="https://x.com/i/history" target="_blank" rel="noopener">x.com/i/history</a>.</p>
+      <ol class="steps">
+        <li>Create an app at <a href="https://console.x.com" target="_blank" rel="noopener">console.x.com</a>
+          with app type <strong>Native App</strong> or <strong>Single-page App</strong>.</li>
+        <li>Add this exact callback URL to the app:
+          <div class="row">
+            <code id="redirectUrl"></code>
+            <button id="copyRedirect" class="button-secondary">Copy</button>
+          </div>
+        </li>
+        <li>Enable scopes: <code>tweet.read</code> <code>users.read</code> <code>bookmark.read</code>
+          <code>bookmark.write</code> <code>offline.access</code>.</li>
+        <li>Paste the app's client ID below and connect.</li>
+      </ol>
+      <label class="field">Client ID
+        <input id="xClientId" placeholder="X app client ID" autocomplete="off">
+      </label>
       <div class="row">
-        <input id="newFolderName" placeholder="Folder name">
-        <input id="newFolderDesc" placeholder="What goes in here? (optional)">
-        <button id="addFolder" class="primary">Add folder</button>
+        <button id="connectX" class="button-secondary">Connect X account</button>
+        <button id="disconnectX" class="button-secondary">Disconnect</button>
       </div>
+      <div id="xStatus" class="status" role="status" aria-live="polite"></div>
     </section>
 
-    <section>
-      <h2>Sorting</h2>
+    <section class="settings-card">
+      <div class="section-heading">
+        <span class="section-index">03</span>
+        <div>
+          <h2>Sorting</h2>
+          <p>Set the classification model and review threshold.</p>
+        </div>
+      </div>
       <label class="field">Model
         <input id="model" placeholder="jev-latest">
       </label>
       <label class="field">Confidence threshold
         <input id="threshold" type="range" min="0" max="1" step="0.05" value="0.6">
-        <span id="thresholdVal">0.60</span>
+        <span id="thresholdVal" class="value">0.60</span>
       </label>
-      <p class="hint">Bookmarks Jev files below this confidence land in Unsorted, flagged for review.</p>
+      <p class="hint">Bookmarks below this confidence stay out of a folder and are flagged for review.</p>
       <label class="field">Max bookmarks per scan
         <input id="maxScan" type="number" min="50" max="2000" step="50" value="400">
       </label>
-      <button id="saveSettings" class="primary">Save settings</button>
-      <div id="settingsStatus" class="status"></div>
+      <button id="saveSettings" class="button-primary">Save settings</button>
+      <div id="settingsStatus" class="status" role="status" aria-live="polite"></div>
     </section>
 
-    <section class="danger">
-      <h2>Data</h2>
-      <button id="clearData">Delete all scanned bookmarks</button>
+    <section class="settings-card danger">
+      <div class="section-heading">
+        <span class="section-index">04</span>
+        <div>
+          <h2>Data</h2>
+          <p>Remove the local scan cache without changing X.</p>
+        </div>
+      </div>
+      <button id="clearData" class="button-secondary">Delete scanned bookmarks</button>
     </section>
   </main>
   <script type="module" src="options.js"></script>

@@ -1,17 +1,44 @@
-// Options page: API key, folders, sorting settings.
+// Options page: TypeSafe key, X account connection, sorting settings.
+import * as xapi from './xapi.js';
 
 const $ = (s) => document.querySelector(s);
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init().catch((e) => {
+    const el = $('#initError');
+    if (el) {
+      el.textContent = 'Settings failed to load: ' + String((e && e.message) || e);
+      el.hidden = false;
+    }
+  });
+});
 
 async function init() {
-  const s = await chrome.storage.local.get(['typesafeApiKey', 'folders', 'settings']);
+  const s = await chrome.storage.local.get([
+    'typesafeApiKey',
+    'xClientId',
+    'settings',
+    'xAccount',
+    'xTokens',
+  ]);
   if (s.typesafeApiKey) $('#apiKey').value = s.typesafeApiKey;
+  if (s.xClientId) $('#xClientId').value = s.xClientId;
+
   const st = s.settings || {};
   $('#model').value = st.model || 'jev-latest';
   $('#threshold').value = st.confidenceThreshold != null ? st.confidenceThreshold : 0.6;
   $('#thresholdVal').textContent = Number($('#threshold').value).toFixed(2);
   $('#maxScan').value = st.maxScanTweets || 400;
+
+  const callbackUrl = redirectUrl();
+  $('#redirectUrl').textContent = callbackUrl || '(unavailable — reload the extension)';
+  if (!identityReady()) {
+    setStatus(
+      '#xStatus',
+      'Reload this extension on chrome://extensions: the identity permission is not in the loaded manifest yet, so Connect will fail.',
+      false
+    );
+  }
 
   $('#toggleKey').onclick = () => {
     const el = $('#apiKey');
@@ -21,14 +48,23 @@ async function init() {
     await chrome.storage.local.set({ typesafeApiKey: $('#apiKey').value.trim() });
     setStatus('#keyStatus', 'Key saved in this browser.', true);
   };
+  $('#copyRedirect').onclick = async () => {
+    await navigator.clipboard.writeText(redirectUrl());
+    setStatus('#xStatus', 'Callback URL copied — paste it into your X app settings.', true);
+  };
+  $('#xClientId').onchange = async () => {
+    await chrome.storage.local.set({ xClientId: $('#xClientId').value.trim() });
+    setStatus('#xStatus', 'Client ID saved.', true);
+  };
+  $('#connectX').onclick = onConnect;
+  $('#disconnectX').onclick = onDisconnect;
   $('#threshold').oninput = () => {
     $('#thresholdVal').textContent = Number($('#threshold').value).toFixed(2);
   };
   $('#saveSettings').onclick = onSaveSettings;
-  $('#addFolder').onclick = onAddFolder;
   $('#clearData').onclick = onClearData;
 
-  renderFolders(s.folders || []);
+  showAccount(s.xAccount, s.xTokens);
 }
 
 function setStatus(sel, msg, ok) {
@@ -37,70 +73,62 @@ function setStatus(sel, msg, ok) {
   el.className = 'status ' + (ok ? 'ok' : 'err');
 }
 
-
-function newId() {
-  return 'f_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+// The `identity` permission only takes effect when the extension is reloaded,
+// so a stale manifest leaves chrome.identity undefined. Derive the same URL from
+// the extension id rather than showing an empty field.
+function redirectUrl() {
+  try {
+    const url = chrome.identity && chrome.identity.getRedirectURL();
+    if (url) return url;
+  } catch (_e) {
+    /* namespace missing — fall through to the derived URL */
+  }
+  return chrome.runtime && chrome.runtime.id ? `https://${chrome.runtime.id}.chromiumapp.org/` : '';
 }
 
-async function getFolders() {
-  const { folders = [] } = await chrome.storage.local.get(['folders']);
-  return folders;
+function identityReady() {
+  return !!(chrome.identity && chrome.identity.launchWebAuthFlow);
 }
 
-async function renderFolders(folders) {
-  const box = $('#folders');
-  box.innerHTML = '';
-  if (!folders.length) box.innerHTML = '<p class="hint">No folders yet — add your first one below.</p>';
-  for (const f of folders) {
-    const row = document.createElement('div');
-    row.className = 'folder';
-    row.innerHTML = `<input value="" data-k="name" maxlength="60"><input value="" data-k="desc" maxlength="200" placeholder="Description for Jev">`;
-    const [nameEl, descEl] = row.querySelectorAll('input');
-    nameEl.value = f.name;
-    descEl.value = f.description || '';
-    descEl.placeholder = 'Description for Jev (e.g. "AI papers, LLM tooling, ML news")';
-    const save = async () => {
-      const all = await getFolders();
-      const ix = all.findIndex((x) => x.id === f.id);
-      if (ix >= 0) {
-        all[ix].name = nameEl.value.trim() || all[ix].name;
-        all[ix].description = descEl.value.trim();
-        await chrome.storage.local.set({ folders: all });
-      }
-    };
-    nameEl.onchange = save;
-    descEl.onchange = save;
-    const del = document.createElement('button');
-    del.textContent = 'Delete';
-    del.onclick = async () => {
-      if (!confirm(`Delete folder "${f.name}"? Its bookmarks go back to Unsorted.`)) return;
-      const all = (await getFolders()).filter((x) => x.id !== f.id);
-      await chrome.storage.local.set({ folders: all });
-      const { bookmarks = {} } = await chrome.storage.local.get(['bookmarks']);
-      for (const b of Object.values(bookmarks)) {
-        if (b.folderId === f.id) {
-          b.folderId = 'unsorted';
-          b.needsReview = true;
-        }
-      }
-      await chrome.storage.local.set({ bookmarks });
-      renderFolders(all);
-    };
-    row.appendChild(del);
-    box.appendChild(row);
+function showAccount(account, tokens) {
+  if (account && account.username && tokens && tokens.accessToken) {
+    setStatus('#xStatus', `Connected as @${account.username}.`, true);
   }
 }
 
-async function onAddFolder() {
-  const name = $('#newFolderName').value.trim();
-  const description = $('#newFolderDesc').value.trim();
-  if (!name) return;
-  const folders = await getFolders();
-  folders.push({ id: newId(), name, description, createdAt: Date.now() });
-  await chrome.storage.local.set({ folders });
-  $('#newFolderName').value = '';
-  $('#newFolderDesc').value = '';
-  renderFolders(folders);
+async function onConnect() {
+  const clientId = $('#xClientId').value.trim();
+  if (!clientId) {
+    setStatus('#xStatus', 'Paste your X app client ID first.', false);
+    return;
+  }
+  if (!identityReady()) {
+    setStatus('#xStatus', 'Reload this extension on chrome://extensions before connecting — the identity permission is missing.', false);
+    return;
+  }
+  await chrome.storage.local.set({ xClientId: clientId });
+  const redirectUri = redirectUrl();
+  try {
+    const { verifier, challenge } = await xapi.createPkce();
+    const state = crypto.randomUUID();
+    const authUrl = xapi.buildAuthorizeUrl({ clientId, redirectUri, state, challenge });
+    const redirectUrl = await chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true });
+    const code = xapi.readRedirect(redirectUrl, state);
+    const tokens = await xapi.exchangeCodeForTokens({ clientId, code, codeVerifier: verifier, redirectUri });
+    const me = await xapi.getMe(tokens.accessToken);
+    await chrome.storage.local.set({
+      xTokens: tokens,
+      xAccount: { id: me.id, username: me.username, name: me.name },
+    });
+    setStatus('#xStatus', `Connected as @${me.username}.`, true);
+  } catch (e) {
+    setStatus('#xStatus', 'Connect failed: ' + String((e && e.message) || e), false);
+  }
+}
+
+async function onDisconnect() {
+  await chrome.storage.local.remove(['xTokens', 'xAccount']);
+  setStatus('#xStatus', 'Disconnected — revoke access at x.com/settings/connected_apps if you want it gone.', true);
 }
 
 async function onSaveSettings() {
@@ -115,7 +143,7 @@ async function onSaveSettings() {
 }
 
 async function onClearData() {
-  if (!confirm('Delete all scanned bookmarks? Folders and settings are kept.')) return;
+  if (!confirm('Delete all scanned bookmarks? Your X account and settings are untouched.')) return;
   await chrome.storage.local.set({ bookmarks: {} });
   alert('Bookmarks cleared.');
 }

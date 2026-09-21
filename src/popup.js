@@ -1,7 +1,13 @@
 // Popup: browse bookmarks by folder, trigger scans and Jev auto-sort.
 const $ = (s) => document.querySelector(s);
-let S = { bookmarks: {}, folders: [], settings: {} };
+let S = { bookmarks: {}, folders: [], settings: {}, xAccount: null };
 let activeTab = 'all';
+
+// X moved bookmarks to the History page's "Bookmarks" tab; x.com/i/bookmarks is
+// the pre-2026 path and now redirects there. Its sibling tab (/i/history/likes)
+// is not bookmarks, so match either path exactly — never the Likes tab.
+const BOOKMARKS_PAGE = 'https://x.com/i/history';
+const BOOKMARKS_TAB_URL = /^https?:\/\/(?:x|twitter)\.com\/i\/(?:history|bookmarks)\/?(?:[?#]|$)/;
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -23,10 +29,14 @@ async function refresh() {
       bookmarks: res.state.bookmarks || {},
       folders: res.state.folders || [],
       settings: res.state.settings || {},
+      xAccount: res.state.xAccount || null,
     };
   }
   renderTabs();
   renderList();
+  if (!S.xAccount && !$('#status').textContent) {
+    setStatus('Connect your X account in Settings (⚙) before sorting.');
+  }
 }
 
 function setStatus(t) {
@@ -115,31 +125,37 @@ function renderList() {
       sel.appendChild(op);
     }
     sel.onchange = async () => {
-      const st = await chrome.storage.local.get(['bookmarks']);
-      const bm = st.bookmarks || {};
-      if (bm[b.id]) {
-        bm[b.id].folderId = sel.value;
-        bm[b.id].needsReview = false;
-        await chrome.storage.local.set({ bookmarks: bm });
-      }
+      sel.disabled = true;
+      const res = await chrome.runtime
+        .sendMessage({ type: 'FILE_BOOKMARK', id: b.id, folderId: sel.value })
+        .catch(() => null);
+      sel.disabled = false;
+      if (!res || !res.ok) setStatus('Could not move that bookmark: ' + ((res && res.error) || 'unknown error'));
+      else setStatus(res.folderId === 'unsorted' ? 'Moved to Unsorted.' : 'Moved in X.');
       await refresh();
     };
     list.appendChild(el);
   }
 }
 
+/** The user's bookmarks tab, opening one if needed. */
+async function bookmarksTab() {
+  const tabs = await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] });
+  const existing = tabs.find((t) => BOOKMARKS_TAB_URL.test(t.url || ''));
+  if (existing) {
+    await chrome.tabs.update(existing.id, { active: true });
+    return existing;
+  }
+  return null;
+}
+
 async function doScan() {
   setStatus('Looking for your X bookmarks tab…');
-  const tabs = await chrome.tabs.query({
-    url: ['https://x.com/i/bookmarks*', 'https://twitter.com/i/bookmarks*'],
-  });
-  let tab = tabs[0];
+  let tab = await bookmarksTab();
   if (!tab) {
-    tab = await chrome.tabs.create({ url: 'https://x.com/i/bookmarks', active: true });
-    setStatus('Opened X bookmarks — waiting for the page to load…');
+    tab = await chrome.tabs.create({ url: BOOKMARKS_PAGE, active: true });
+    setStatus('Opened x.com/i/history — waiting for the page to load…');
     await new Promise((r) => setTimeout(r, 6000));
-  } else {
-    await chrome.tabs.update(tab.id, { active: true });
   }
   setStatus('Scanning — scrolling through your bookmarks…');
   const max = (S.settings && S.settings.maxScanTweets) || 400;
@@ -158,15 +174,26 @@ async function doScan() {
 }
 
 async function doSort() {
+  // Folder options come from the page the user is looking at; the background
+  // worker resolves them to X folder ids for filing.
+  setStatus('Reading your X folders…');
+  const tab = await bookmarksTab();
+  let folderNames = [];
+  if (tab) {
+    const page = await chrome.tabs
+      .sendMessage(tab.id, { type: 'READ_FOLDERS' })
+      .catch(() => null);
+    folderNames = (page && page.ok && page.folders) || [];
+  }
   setStatus('Asking Jev to file your bookmarks…');
   let resp;
   try {
-    resp = await chrome.runtime.sendMessage({ type: 'START_SORT' });
+    resp = await chrome.runtime.sendMessage({ type: 'START_SORT', folderNames });
   } catch (e) {
     resp = { ok: false, error: String((e && e.message) || e) };
   }
   if (resp && resp.ok) {
-    setStatus(`Done — ${resp.sorted} filed, ${resp.review} need review, ${resp.errors} errors.`);
+    setStatus(`Done — ${resp.sorted} filed into X, ${resp.review} need review, ${resp.errors} errors.`);
   } else {
     setStatus('Sort failed: ' + ((resp && resp.error) || 'unknown error'));
   }
