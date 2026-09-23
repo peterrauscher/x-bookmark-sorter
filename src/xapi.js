@@ -90,6 +90,7 @@ export function readRedirect(redirectUrl, expectedState) {
 async function postToken(body) {
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
+    credentials: 'omit',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(body),
   });
@@ -124,6 +125,7 @@ async function apiFetch(path, { token, method = 'GET', body, query } = {}) {
   }
   const res = await fetch(url, {
     method,
+    credentials: 'omit',
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body ? { 'Content-Type': 'application/json' } : {}),

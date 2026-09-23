@@ -22,6 +22,7 @@ async function init() {
   });
 }
 
+
 async function refresh() {
   const res = await chrome.runtime.sendMessage({ type: 'GET_STATE' }).catch(() => null);
   if (res && res.ok) {
@@ -190,7 +191,7 @@ function renderList() {
   const items = filtered();
   if (!items.length) {
     list.innerHTML =
-      '<p class="empty">Nothing here yet. Open your X bookmarks page, hit “Scan bookmarks”, then “Auto-sort with X”.</p>';
+      '<p class="empty">Nothing here yet. Open your X bookmarks page, hit “Scan bookmarks”, then “Auto-sort”.</p>';
     return;
   }
   renderBookmarkCards(items);

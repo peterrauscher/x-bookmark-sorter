@@ -28,11 +28,15 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  overflow: hidden;
+}
+
 body {
   width: 440px;
   max-height: 600px;
   margin: 0;
-  overflow: hidden;
   color: var(--text-main);
   background: var(--bg);
   font-family: var(--font-sans);
@@ -189,15 +193,42 @@ button:disabled {
   gap: 8px;
   padding: 4px 20px 14px;
   overflow-x: auto;
-}
-
-.filter-pills::-webkit-scrollbar {
-  display: none;
-}
-.filter-pills {
+  overflow-y: hidden;
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+
+.filter-pills::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.filter-pills:hover,
+.filter-pills:focus-within {
+  -ms-overflow-style: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cdd3da transparent;
+}
+
+.filter-pills:hover::-webkit-scrollbar,
+.filter-pills:focus-within::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  display: block;
+}
+
+.filter-pills:hover::-webkit-scrollbar-track,
+.filter-pills:focus-within::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.filter-pills:hover::-webkit-scrollbar-thumb,
+.filter-pills:focus-within::-webkit-scrollbar-thumb {
+  background: #cdd3da;
+  border-radius: 999px;
+}
+
 
 .pill-tab {
   flex: 0 0 auto;
@@ -227,33 +258,26 @@ button:disabled {
   background: var(--pill-active-bg);
   font-weight: 600;
 }
-
-/* Folder / Bookmark list container */
 #list {
   max-height: 440px;
   padding: 0 20px 20px;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 #list::-webkit-scrollbar {
-  width: 6px;
+  width: 0;
+  height: 0;
+  display: none;
 }
 
-#list::-webkit-scrollbar-track {
-  background: transparent;
-}
 
-#list::-webkit-scrollbar-thumb {
-  background: #e2e5e9;
-  border-radius: 999px;
-}
-
-#list::-webkit-scrollbar-thumb:hover {
-  background: #cdd3da;
-}
 
 /* Folder Card (Matches Reference Image) */
 .folder-card {
