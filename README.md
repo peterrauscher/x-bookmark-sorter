@@ -71,7 +71,7 @@ The confidence threshold and maximum scan size are adjustable in Settings.
 - Bookmark text, author information, and URLs are sent to `api.typesafe.ai` when Jev classifies bookmarks.
 - X folder reads and bookmark writes use X's API.
 - The extension has no server of its own.
-- **Delete scanned bookmarks** removes BookmarX's local scan cache; it does not delete anything from X.
+- **Clear cache** removes BookmarX's local scan cache; it does not delete anything from X.
 
 Review the permissions and the source code before installing an extension from any source.
 
