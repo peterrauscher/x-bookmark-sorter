@@ -2,6 +2,8 @@
 
 Sort your X bookmarks into folders with a little help from TypeSafe's Jev.
 
+https://github.com/user-attachments/assets/887ea380-d825-4917-bd28-f7c348640635
+
 BookmarX is a small Chrome extension. It scans the bookmarks you already have on X, suggests folders for them, and lets you review or change the results before filing them.
 
 ## What it does
