@@ -26,7 +26,7 @@ async function init() {
 
   const st = s.settings || {};
   $('#model').value = st.model || 'jev-latest';
-  $('#threshold').value = st.confidenceThreshold != null ? st.confidenceThreshold : 0.6;
+  $('#threshold').value = st.confidenceThreshold != null ? st.confidenceThreshold : 0.2;
   $('#thresholdVal').textContent = Number($('#threshold').value).toFixed(2);
   $('#maxScan').value = st.maxScanTweets || 400;
 

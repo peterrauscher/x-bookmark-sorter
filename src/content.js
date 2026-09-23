@@ -87,6 +87,110 @@
       .filter((name) => name && name !== ALL_BOOKMARKS);
   }
 
+  function scrapeReplyTo(article) {
+    for (const el of article.querySelectorAll('div, span')) {
+      const t = (el.innerText || '').trim();
+      if (/^Replying to\s+@/i.test(t)) {
+        return t;
+      }
+    }
+    return null;
+  }
+
+  function scrapeQuote(article, mainId) {
+    const links = [...article.querySelectorAll('a[href*="/status/"]')];
+    const quoteLink = links.find((l) => {
+      const m = (l.getAttribute('href') || '').match(/\/status\/(\d+)/);
+      return m && m[1] !== mainId;
+    });
+
+    const textEls = [...article.querySelectorAll('[data-testid="tweetText"]')];
+    const quoteText = textEls.length > 1 ? textEls[1].innerText.trim() : '';
+
+    if (quoteLink) {
+      const href = quoteLink.getAttribute('href') || '';
+      const match = href.match(/^\/([^/]+)\/status\/(\d+)/);
+      const quoteHandle = match && match[1] !== 'i' ? `@${match[1]}` : '';
+
+      let quoteBox = quoteLink;
+      while (quoteBox && quoteBox.parentElement && quoteBox.parentElement !== article) {
+        if (quoteBox.getAttribute('role') === 'link' || quoteBox.querySelector('[data-testid="tweetText"]')) {
+          break;
+        }
+        quoteBox = quoteBox.parentElement;
+      }
+
+      let quoteAuthorName = '';
+      if (quoteBox) {
+        const spans = [...quoteBox.querySelectorAll('span')]
+          .map((s) => s.innerText.trim())
+          .filter(Boolean);
+        const hIdx = spans.findIndex((s) => s.startsWith('@'));
+        if (hIdx > 0) quoteAuthorName = spans[hIdx - 1];
+      }
+
+      if (quoteText || quoteHandle || quoteAuthorName) {
+        return {
+          id: (match && match[2]) || (href.match(/\/status\/(\d+)/) || [])[1] || '',
+          authorName: quoteAuthorName,
+          authorHandle: quoteHandle,
+          text: quoteText,
+        };
+      }
+    }
+
+    if (quoteText) {
+      return {
+        id: '',
+        authorName: '',
+        authorHandle: '',
+        text: quoteText,
+      };
+    }
+
+    return null;
+  }
+
+  function scrapeLinkCard(article) {
+    const cardEl = article.querySelector('[data-testid="card.wrapper"]');
+    if (!cardEl) return null;
+    const cardLink = cardEl.querySelector('a[href]') || (cardEl.tagName === 'A' ? cardEl : null);
+    const url = cardLink ? cardLink.getAttribute('href') || '' : '';
+
+    const texts = [...cardEl.querySelectorAll('span, div')]
+      .map((el) => (el.innerText || '').trim())
+      .filter((t, i, arr) => t && t.length > 1 && arr.indexOf(t) === i);
+
+    if (!texts.length && !url) return null;
+
+    let domain = '';
+    let title = '';
+    let description = '';
+
+    if (texts.length === 1) {
+      title = texts[0];
+    } else if (texts.length === 2) {
+      if (texts[0].includes('.') && !texts[0].includes(' ')) {
+        domain = texts[0];
+        title = texts[1];
+      } else {
+        title = texts[0];
+        description = texts[1];
+      }
+    } else if (texts.length >= 3) {
+      if (texts[0].includes('.') && !texts[0].includes(' ')) {
+        domain = texts[0];
+        title = texts[1];
+        description = texts.slice(2).join(' — ');
+      } else {
+        title = texts[0];
+        description = texts.slice(1).join(' — ');
+      }
+    }
+
+    return { url, domain, title, description };
+  }
+
   function scrapeVisible() {
     const out = [];
     document.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
@@ -111,7 +215,20 @@
         if (handle) authorHandle = handle;
       }
 
-      out.push({ id, text, authorName, authorHandle, url: `https://x.com/i/status/${id}` });
+      const replyTo = scrapeReplyTo(article);
+      const quote = scrapeQuote(article, id);
+      const linkCard = scrapeLinkCard(article);
+
+      out.push({
+        id,
+        text,
+        authorName,
+        authorHandle,
+        url: `https://x.com/i/status/${id}`,
+        replyTo,
+        quote,
+        linkCard,
+      });
     });
     return out;
   }

@@ -44,22 +44,28 @@ function setStatus(t) {
   $('#status').textContent = t || '';
 }
 
+function isReview(bookmark) {
+  return !bookmark.folderId || bookmark.folderId === 'unsorted' || bookmark.needsReview;
+}
+
 function counts() {
   const all = Object.values(S.bookmarks);
   return {
     all: all.length,
-    unsorted: all.filter((b) => !b.folderId || b.folderId === 'unsorted').length,
-    review: all.filter((b) => b.needsReview).length,
+    review: all.filter(isReview).length,
   };
 }
+
 function renderTabs() {
   const c = counts();
   const folderCounts = new Map(
-    S.folders.map((f) => [f.id, Object.values(S.bookmarks).filter((b) => b.folderId === f.id).length])
+    S.folders.map((f) => [
+      f.id,
+      Object.values(S.bookmarks).filter((b) => b.folderId === f.id && !isReview(b)).length,
+    ])
   );
   const tabs = [
     { id: 'all', label: `All (${c.all})` },
-    { id: 'unsorted', label: `Unsorted (${c.unsorted})` },
     { id: 'review', label: `Review (${c.review})` },
     ...S.folders.map((f) => ({ id: f.id, label: `${f.name} (${folderCounts.get(f.id) || 0})` })),
   ];
@@ -82,9 +88,8 @@ function renderTabs() {
 function filtered() {
   const all = Object.values(S.bookmarks).sort((a, b) => (b.scannedAt || 0) - (a.scannedAt || 0));
   if (activeTab === 'all') return all;
-  if (activeTab === 'unsorted') return all.filter((b) => !b.folderId || b.folderId === 'unsorted');
-  if (activeTab === 'review') return all.filter((b) => b.needsReview);
-  return all.filter((b) => b.folderId === activeTab);
+  if (activeTab === 'review') return all.filter(isReview);
+  return all.filter((b) => b.folderId === activeTab && !b.needsReview);
 }
 
 function esc(s) {
@@ -96,8 +101,20 @@ function esc(s) {
 
 function folderItems(folderId) {
   return Object.values(S.bookmarks)
-    .filter((b) => b.folderId === folderId)
+    .filter((b) => b.folderId === folderId && !b.needsReview)
     .sort((a, b) => (b.scannedAt || 0) - (a.scannedAt || 0));
+}
+
+function postSummary(b) {
+  if (b.text) return b.text;
+  if (b.quote && b.quote.text) {
+    const who = b.quote.authorHandle || b.quote.authorName || 'Quoted post';
+    return `[Quote ${who}] ${b.quote.text}`;
+  }
+  if (b.linkCard && b.linkCard.title) {
+    return `[Link] ${b.linkCard.title}${b.linkCard.domain ? ` (${b.linkCard.domain})` : ''}`;
+  }
+  return '(no text — media post)';
 }
 
 function renderFolderCards() {
@@ -106,8 +123,8 @@ function renderFolderCards() {
     ...f,
     items: folderItems(f.id),
   }));
-  const unsorted = filtered().filter((b) => !b.folderId || b.folderId === 'unsorted');
-  if (unsorted.length) folders.push({ id: 'unsorted', name: 'Unsorted', items: unsorted });
+  const reviewItems = Object.values(S.bookmarks).filter(isReview);
+  if (reviewItems.length) folders.push({ id: 'review', name: 'Review', items: reviewItems });
   if (!folders.length) {
     list.innerHTML =
       '<p class="empty">No folders yet. Scan your X bookmarks, then create folders on x.com/i/history.</p>';
@@ -128,7 +145,7 @@ function renderFolderCards() {
             <span class="folder-name">${esc(folder.name)}</span>
             <span class="count-pill">${folder.items.length}</span>
           </span>
-          <span class="folder-sample-text">${esc(sample ? (sample.text || '(no text — media post)').slice(0, 100) : 'No bookmarks yet')}</span>
+          <span class="folder-sample-text">${esc(sample ? postSummary(sample).slice(0, 100) : 'No bookmarks yet')}</span>
         </span>
       </span>
       <svg class="folder-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -152,19 +169,31 @@ function renderBookmarkCards(items) {
       typeof b.confidence === 'number'
         ? `<span class="conf" title="Jev confidence">${Math.round(b.confidence * 100)}%</span>`
         : '';
+    const quoteHtml = b.quote && b.quote.text
+      ? `<div class="quote-preview"><strong>${esc(b.quote.authorHandle || b.quote.authorName || 'Quoted post')}</strong>: ${esc(b.quote.text.slice(0, 140))}</div>`
+      : '';
+    const linkHtml = b.linkCard && b.linkCard.title
+      ? `<div class="link-preview"><strong>${esc(b.linkCard.domain || 'Link')}</strong>: ${esc(b.linkCard.title.slice(0, 120))}</div>`
+      : '';
+    const replyBadge = b.replyTo
+      ? `<span class="badge" title="${esc(b.replyTo)}">${esc(b.replyTo)}</span>`
+      : '';
     el.innerHTML = `
       <div class="meta"><strong>${esc(b.authorName || b.authorHandle || 'Unknown')}</strong>${conf}
+        ${replyBadge}
         ${b.needsReview ? '<span class="badge">needs review</span>' : ''}</div>
-      <div class="text">${esc((b.text || '(no text — media post)').slice(0, 220))}</div>
+      <div class="text">${esc(postSummary(b).slice(0, 220))}</div>
+      ${quoteHtml}
+      ${linkHtml}
       <div class="row"><select class="folderSel" title="Folder"></select>
       <a class="open" target="_blank" rel="noopener">Open ↗</a></div>`;
     el.querySelector('.open').href = b.url;
     const sel = el.querySelector('.folderSel');
-    for (const o of [{ id: 'unsorted', name: 'Unsorted' }, ...S.folders]) {
+    for (const o of [{ id: 'unsorted', name: 'Review' }, ...S.folders]) {
       const op = document.createElement('option');
       op.value = o.id;
       op.textContent = o.name;
-      if ((b.folderId || 'unsorted') === o.id) op.selected = true;
+      if (isReview(b) ? o.id === 'unsorted' : b.folderId === o.id) op.selected = true;
       sel.appendChild(op);
     }
     sel.onchange = async () => {
@@ -174,7 +203,7 @@ function renderBookmarkCards(items) {
         .catch(() => null);
       sel.disabled = false;
       if (!res || !res.ok) setStatus('Could not move that bookmark: ' + ((res && res.error) || 'unknown error'));
-      else setStatus(res.folderId === 'unsorted' ? 'Moved to Unsorted.' : 'Moved in X.');
+      else setStatus(res.folderId === 'unsorted' ? 'Moved to Review.' : 'Moved in X.');
       await refresh();
     };
     list.appendChild(el);

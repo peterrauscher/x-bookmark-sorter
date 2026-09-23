@@ -4,7 +4,7 @@ import * as xapi from './xapi.js';
 
 const DEFAULT_SETTINGS = {
   model: 'jev-latest',
-  confidenceThreshold: 0.6,
+  confidenceThreshold: 0.2,
   maxScanTweets: 400,
 };
 
@@ -12,8 +12,36 @@ const DEFAULT_SETTINGS = {
 const CLASSIFICATION_BATCH_SIZE = 20;
 const CLASSIFICATION_CONCURRENCY = 3;
 
+
+export function selectBestFolder(result, targetFolderIds, threshold = 0.2) {
+  if (!result) return null;
+  const known = targetFolderIds instanceof Set ? targetFolderIds : new Set(targetFolderIds);
+  let bestId = null;
+  let bestScore = -1;
+
+  const probs = result.probabilities || {};
+  for (const id of known) {
+    const p = typeof probs[id] === 'number' ? probs[id] : 0;
+    const c = result.choice === id && typeof result.confidence === 'number' ? result.confidence : 0;
+    const score = Math.max(p, c);
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = id;
+    }
+  }
+
+  if ((bestScore <= 0 || !bestId) && result.choice && known.has(result.choice)) {
+    bestId = result.choice;
+    bestScore = typeof result.confidence === 'number' ? result.confidence : 0;
+  }
+
+  if (bestId && bestScore >= threshold) {
+    return { folderId: bestId, confidence: bestScore };
+  }
+  return null;
+}
 // Bookmark record:
-// { id, text, authorName, authorHandle, url,
+// { id, text, authorName, authorHandle, url, replyTo, quote, linkCard,
 //   folderId: null | 'unsorted' | <X bookmark folder id>, confidence, needsReview,
 //   scannedAt, sortedAt, sortError }
 
@@ -68,6 +96,9 @@ async function mergeBookmarks(list) {
         authorName: b.authorName || '',
         authorHandle: b.authorHandle || '',
         url: b.url || `https://x.com/i/status/${b.id}`,
+        replyTo: b.replyTo || null,
+        quote: b.quote || null,
+        linkCard: b.linkCard || null,
         folderId: null,
         confidence: null,
         needsReview: false,
@@ -80,6 +111,9 @@ async function mergeBookmarks(list) {
       if (b.url) bookmarks[b.id].url = b.url;
       if (b.authorName) bookmarks[b.id].authorName = b.authorName;
       if (b.authorHandle) bookmarks[b.id].authorHandle = b.authorHandle;
+      if (b.replyTo) bookmarks[b.id].replyTo = b.replyTo;
+      if (b.quote) bookmarks[b.id].quote = b.quote;
+      if (b.linkCard) bookmarks[b.id].linkCard = b.linkCard;
     }
   }
   await chrome.storage.local.set({ bookmarks });
@@ -191,6 +225,7 @@ async function autoSort(onProgress, folderNames) {
 
   const cfg = { ...DEFAULT_SETTINGS, ...settings };
   const known = new Set(xFolders.map((f) => f.id));
+  const targetIds = new Set(targets.map((f) => f.id));
   const all = Object.values(bookmarks);
   const pending = all.filter((b) => !b.folderId || b.folderId === 'unsorted' || !known.has(b.folderId));
   if (!pending.length) return { total: 0, sorted: 0, review: 0, errors: 0, folders: targets.length };
@@ -232,15 +267,16 @@ async function autoSort(onProgress, folderNames) {
       for (let j = 0; j < batch.length; j++) {
         const b = batch[j];
         const r = results[j];
-        if (r.choice !== 'unsorted' && r.confidence >= cfg.confidenceThreshold) {
-          b.folderId = r.choice;
-          b.confidence = r.confidence;
+        const match = selectBestFolder(r, targetIds, cfg.confidenceThreshold);
+        if (match) {
+          b.folderId = match.folderId;
+          b.confidence = match.confidence;
           b.needsReview = false;
           sorted++;
-          (filed[r.choice] = filed[r.choice] || []).push(b.id);
+          (filed[match.folderId] = filed[match.folderId] || []).push(b.id);
         } else {
           b.folderId = 'unsorted';
-          b.confidence = r.confidence;
+          b.confidence = (r && typeof r.confidence === 'number') ? r.confidence : 0;
           b.needsReview = true;
           review++;
         }

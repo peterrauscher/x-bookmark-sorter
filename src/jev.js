@@ -27,20 +27,46 @@ export async function classifyBookmarks(apiKey, bookmarks, folders, model = 'jev
   criteria.unsorted = 'The post does not clearly fit into any of the folders above.';
 
   const state = {
-    bookmarks: bookmarks.map((bookmark, index) => ({
-      index,
-      id: bookmark.id,
-      author: bookmark.authorName || bookmark.authorHandle || 'unknown',
-      text: bookmark.text || '(no text — image/video post)',
-      url: bookmark.url,
-    })),
+    bookmarks: bookmarks.map((bookmark, index) => {
+      const item = {
+        index,
+        id: bookmark.id,
+        author: bookmark.authorName && bookmark.authorHandle
+          ? `${bookmark.authorName} (${bookmark.authorHandle})`
+          : bookmark.authorName || bookmark.authorHandle || 'unknown',
+        text: bookmark.text || '(no text — image/video post)',
+        url: bookmark.url,
+      };
+      if (bookmark.replyTo) {
+        item.replyTo = bookmark.replyTo;
+      }
+      if (bookmark.quote) {
+        const q = bookmark.quote;
+        const qAuthor = q.authorName && q.authorHandle
+          ? `${q.authorName} (${q.authorHandle})`
+          : q.authorName || q.authorHandle || '';
+        item.quote = {
+          ...(qAuthor ? { author: qAuthor } : {}),
+          text: q.text || '',
+        };
+      }
+      if (bookmark.linkCard) {
+        const card = bookmark.linkCard;
+        item.linkCard = {
+          ...(card.title ? { title: card.title } : {}),
+          ...(card.domain ? { domain: card.domain } : {}),
+          ...(card.description ? { description: card.description } : {}),
+        };
+      }
+      return item;
+    }),
   };
 
   const questions = {};
   for (let i = 0; i < bookmarks.length; i++) {
     questions[`bookmark_${i}`] = {
       type: 'choice',
-      instructions: `Which folder should the bookmarked X post at \`bookmarks[${i}]\` be filed into? Choose the single best fit for that post only. Ignore all other posts in the state.`,
+      instructions: `Which folder should the bookmarked X post at \`bookmarks[${i}]\` be filed into? Consider the post text and any attached thread context (reply target, quoted post, or article/link card). Choose the single best fit for that post only. Ignore all other posts in the state.`,
       criteria,
     };
   }

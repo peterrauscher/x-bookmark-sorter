@@ -450,6 +450,20 @@ button:disabled {
   line-height: 1.45;
 }
 
+.quote-preview,
+.link-preview {
+  margin-top: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: #f8fafc;
+  border: 1px solid var(--border-card);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
 .row {
   display: flex;
   gap: 8px;

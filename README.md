@@ -58,7 +58,7 @@ Create the folders you want to use on [x.com/i/history](https://x.com/i/history)
 1. Open [x.com/i/history](https://x.com/i/history) and select the **Bookmarks** tab.
 2. Open the BookmarX popup and choose **Scan bookmarks**.
 3. Choose **Auto-sort**.
-4. Browse folders, **Unsorted**, or **Review** in the popup.
+4. Browse folders or **Review** in the popup.
 5. Change a bookmark's folder manually whenever needed.
 
 The confidence threshold and maximum scan size are adjustable in Settings.
