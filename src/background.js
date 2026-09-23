@@ -4,7 +4,7 @@ import * as xapi from './xapi.js';
 
 const DEFAULT_SETTINGS = {
   model: 'jev-latest',
-  confidenceThreshold: 0.2,
+  confidenceThreshold: 0.4,
   maxScanTweets: 400,
 };
 
@@ -13,7 +13,7 @@ const CLASSIFICATION_BATCH_SIZE = 20;
 const CLASSIFICATION_CONCURRENCY = 3;
 
 
-export function selectBestFolder(result, targetFolderIds, threshold = 0.2) {
+export function selectBestFolder(result, targetFolderIds, threshold = 0.4) {
   if (!result) return null;
   const known = targetFolderIds instanceof Set ? targetFolderIds : new Set(targetFolderIds);
   let bestId = null;
