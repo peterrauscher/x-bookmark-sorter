@@ -51,24 +51,24 @@ function counts() {
     review: all.filter((b) => b.needsReview).length,
   };
 }
-
 function renderTabs() {
   const c = counts();
+  const folderCounts = new Map(
+    S.folders.map((f) => [f.id, Object.values(S.bookmarks).filter((b) => b.folderId === f.id).length])
+  );
   const tabs = [
     { id: 'all', label: `All (${c.all})` },
     { id: 'unsorted', label: `Unsorted (${c.unsorted})` },
     { id: 'review', label: `Review (${c.review})` },
-    ...S.folders.map((f) => ({
-      id: f.id,
-      label: `${f.name} (${Object.values(S.bookmarks).filter((b) => b.folderId === f.id).length})`,
-    })),
+    ...S.folders.map((f) => ({ id: f.id, label: `${f.name} (${folderCounts.get(f.id) || 0})` })),
   ];
   const nav = $('#tabs');
   nav.innerHTML = '';
   for (const t of tabs) {
     const b = document.createElement('button');
+    b.type = 'button';
     b.textContent = t.label;
-    b.className = t.id === activeTab ? 'tab active' : 'tab';
+    b.className = t.id === activeTab ? 'pill-tab active' : 'pill-tab';
     b.onclick = () => {
       activeTab = t.id;
       renderTabs();
@@ -93,15 +93,57 @@ function esc(s) {
   );
 }
 
-function renderList() {
+function folderItems(folderId) {
+  return Object.values(S.bookmarks)
+    .filter((b) => b.folderId === folderId)
+    .sort((a, b) => (b.scannedAt || 0) - (a.scannedAt || 0));
+}
+
+function renderFolderCards() {
   const list = $('#list');
-  const items = filtered();
-  list.innerHTML = '';
-  if (!items.length) {
+  const folders = S.folders.map((f) => ({
+    ...f,
+    items: folderItems(f.id),
+  }));
+  const unsorted = filtered().filter((b) => !b.folderId || b.folderId === 'unsorted');
+  if (unsorted.length) folders.push({ id: 'unsorted', name: 'Unsorted', items: unsorted });
+  if (!folders.length) {
     list.innerHTML =
-      '<p class="empty">Nothing here yet. Open your X bookmarks page, hit “Scan X bookmarks”, then “Auto-sort with Jev”.</p>';
+      '<p class="empty">No folders yet. Scan your X bookmarks, then create folders on x.com/i/history.</p>';
     return;
   }
+  for (const folder of folders) {
+    const sample = folder.items[0];
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'folder-card';
+    card.innerHTML = `
+      <span class="folder-card-main">
+        <svg class="folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h5l2 2h8A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/>
+        </svg>
+        <span class="folder-details">
+          <span class="folder-header-row">
+            <span class="folder-name">${esc(folder.name)}</span>
+            <span class="count-pill">${folder.items.length}</span>
+          </span>
+          <span class="folder-sample-text">${esc(sample ? (sample.text || '(no text — media post)').slice(0, 100) : 'No bookmarks yet')}</span>
+        </span>
+      </span>
+      <svg class="folder-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m9 18 6-6-6-6"/>
+      </svg>`;
+    card.addEventListener('click', () => {
+      activeTab = folder.id;
+      renderTabs();
+      renderList();
+    });
+    list.appendChild(card);
+  }
+}
+
+function renderBookmarkCards(items) {
+  const list = $('#list');
   for (const b of items.slice(0, 300)) {
     const el = document.createElement('div');
     el.className = 'card' + (b.needsReview ? ' review' : '');
@@ -138,6 +180,21 @@ function renderList() {
   }
 }
 
+function renderList() {
+  const list = $('#list');
+  list.innerHTML = '';
+  if (activeTab === 'all') {
+    renderFolderCards();
+    return;
+  }
+  const items = filtered();
+  if (!items.length) {
+    list.innerHTML =
+      '<p class="empty">Nothing here yet. Open your X bookmarks page, hit “Scan bookmarks”, then “Auto-sort with X”.</p>';
+    return;
+  }
+  renderBookmarkCards(items);
+}
 /** The user's bookmarks tab, opening one if needed. */
 async function bookmarksTab() {
   const tabs = await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] });
