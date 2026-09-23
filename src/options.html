@@ -6,9 +6,21 @@
   <title>BookmarX — Settings</title>
 </head>
 <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <svg class="brand-logo" viewBox="0 0 28 28" aria-hidden="true">
+            <path d="M6 3.5A2.5 2.5 0 0 1 8.5 1h11A2.5 2.5 0 0 1 22 3.5v22a.75.75 0 0 1-1.22.58L14 20.8 7.22 26.08A.75.75 0 0 1 6 25.5V3.5z" fill="#0f1419"/>
+            <path d="M10 8h8M10 12h8M10 16h5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <span class="brand-title">BookmarX</span>
+        </div>
+        <span class="topbar-context">Settings</span>
+      </div>
+    </header>
+
   <main>
     <header class="page-header">
-      <span class="eyebrow">BOOKMARX / CONFIGURATION</span>
       <h1>BookmarX settings</h1>
       <p>Connect the filing system, tune Jev, and keep credentials local to this browser.</p>
     </header>
@@ -28,7 +40,7 @@
         <code>api.typesafe.ai</code> when sorting.</p>
       <div class="row">
         <input id="apiKey" type="password" placeholder="Paste your TypeSafe API key" autocomplete="off">
-        <button id="toggleKey" class="button-secondary">Show</button>
+        <button id="toggleKey">Show</button>
       </div>
       <div id="keyStatus" class="status" role="status" aria-live="polite"></div>
     </section>
@@ -50,7 +62,7 @@
         <li>Add this exact callback URL to the app:
           <div class="row">
             <code id="redirectUrl"></code>
-            <button id="copyRedirect" class="button-secondary">Copy</button>
+            <button id="copyRedirect">Copy</button>
           </div>
         </li>
         <li>Enable scopes: <code>tweet.read</code> <code>users.read</code> <code>bookmark.read</code>
@@ -61,8 +73,8 @@
         <input id="xClientId" placeholder="X app client ID" autocomplete="off">
       </label>
       <div class="row">
-        <button id="connectX" class="button-secondary">Connect X account</button>
-        <button id="disconnectX" class="button-secondary">Disconnect</button>
+        <button id="connectX" class="button-primary">Connect X account</button>
+        <button id="disconnectX">Disconnect</button>
       </div>
       <div id="xStatus" class="status" role="status" aria-live="polite"></div>
     </section>
@@ -98,7 +110,7 @@
           <p>Remove the local scan cache without changing X.</p>
         </div>
       </div>
-      <button id="clearData" class="button-secondary">Delete scanned bookmarks</button>
+      <button id="clearData">Delete scanned bookmarks</button>
     </section>
   </main>
   <script type="module" src="options.js"></script>
